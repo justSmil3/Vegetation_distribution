@@ -1,0 +1,31 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<float> map;
+
+int res;
+
+[numthreads(16,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float PixelSize = 1.0f / (res * res);
+    float2 offsets[8] =
+    {
+        float2(-1, 1),
+        float2(0, 1),
+        float2(1, 1),
+        float2(-1, 0),
+        float2(1, 0),
+        float2(-1, -1),
+        float2(0, 1),
+        float2(1, 1)
+    };
+    // TODO: insert actual code here!
+    offsetmult = pow(2, (log(res * res) / log(2)) - id.x);
+    
+    float cursample = 
+    
+    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}

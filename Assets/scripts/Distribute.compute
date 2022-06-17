@@ -1,0 +1,31 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Distribute
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWStructuredBuffer<float> Result;
+StructuredBuffer<float3> normals;
+Texture2D<float4> mask;
+int res;
+float th;
+
+
+float DAngle(float3 normal)
+{
+    float angle = acos(normal[1]);
+    return angle;
+}
+
+[numthreads(32,1,1)]
+void Distribute (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    // int x = id.x % res;
+    // int y = id.x / res;
+    if (DAngle(normals[id.x]) < th)
+        Result[id.x] = 1;
+    else 
+        Result[id.x] = 0;
+
+}
+
