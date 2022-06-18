@@ -15,10 +15,12 @@ public class VeggiCPU : MonoBehaviour
 
     public ComputeShader distribute;
     public ComputeShader visualize;
+    public ComputeShader distance;
 
     private ComputeBuffer normalBuffer;
     private ComputeBuffer mapBuffer;
     private RenderTexture output;
+    private RenderTexture SDF;
     // Start is called before the first frame update
     void Start()
     {
@@ -54,6 +56,7 @@ public class VeggiCPU : MonoBehaviour
     {
         normalBuffer = new ComputeBuffer(resolution * resolution, sizeof(float) * 3);
         mapBuffer = new ComputeBuffer(resolution * resolution, sizeof(float));
+        float pixelsize = 1.0f / resolution;
 
         output = new RenderTexture(resolution, resolution, 3);
         output.enableRandomWrite = true;
@@ -67,20 +70,24 @@ public class VeggiCPU : MonoBehaviour
 
         distribute.Dispatch(0, resolution * resolution / 32, 1, 1);
 
+        SDF = new RenderTexture(resolution, resolution, 3);
+        SDF.enableRandomWrite = true;
+        for (int i = (int)Mathf.Log(resolution, 2); i >= 0; i--)
+        {
+            distance.SetFloat("PixelSize", pixelsize);
+            distance.SetTexture(0, "distanceField", SDF);
+            distance.SetBuffer(0, "map", mapBuffer);
+            distance.SetInt("resolution", resolution);
+            distance.SetInt("offsetmult", i);
+            distance.Dispatch(0, resolution / 8, resolution / 8, 1);
+        }
+
         visualize.SetTexture(0, "Result", output);
         visualize.SetBuffer(0, "map", mapBuffer);
         visualize.SetInt("resolution", resolution);
         mapBuffer.GetData(map);
-        float currentTmp = 0;
-        foreach (float x in map)
-        {   
-            if(currentTmp != x)
-            {
-                currentTmp = x;
-            }
-        }
         visualize.Dispatch(0, resolution / 8, resolution / 8, 1);
-
+        mapBuffer.GetData(map); 
         Graphics.CopyTexture(output, texture);
         normalBuffer.Dispose();
         mapBuffer.Dispose();

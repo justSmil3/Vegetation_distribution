@@ -4,28 +4,82 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWStructuredBuffer<float> map;
+RWTexture2D<float4> distanceField;
+int offsetmult;
+int resolution;
+float PixelSize;
 
 int res;
 
-[numthreads(16,1,1)]
+float len(float2 vec)
+{
+    float addup = vec.x * vec.x + vec.y * vec.y;
+    float result = sqrt(addup);
+    return result;
+}
+
+[numthreads(8,8,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
-    float PixelSize = 1.0f / (res * res);
+    int idx = id.x + id.y * resolution;
+    //offsetmult -= idx;
+    float _PixelSize = PixelSize ;
+    if(offsetmult == 0)
+    {
+        if (distanceField[id.xy].x > 0 && distanceField[id.xy].y > 0)
+            map[idx] = (distanceField[id.xy].z) ;
+        //distanceField[id.xy] = map[idx];
+        return;
+    }
+    
     float2 offsets[8] =
     {
-        float2(-1, 1),
-        float2(0, 1),
-        float2(1, 1),
-        float2(-1, 0),
-        float2(1, 0),
-        float2(-1, -1),
-        float2(0, 1),
-        float2(1, 1)
+        float2(-1.0f, -1.0f),
+        float2(1.0f, 1.0f),
+        float2(1.0f, 0.0f),
+        float2(0.0f, 1.0f),
+        float2(-1.0f, 0.0f),
+        float2(0.0f, -1.0f),
+        float2(-1.0f, 1.0f),
+        float2(1.0f, -1.0f)
     };
-    // TODO: insert actual code here!
-    offsetmult = pow(2, (log(res * res) / log(2)) - id.x);
     
-    float cursample = 
+    float cursample = map[idx];
+    float mindist = 999999999;
+    if(distanceField[id.xy].z > 0.0f)
+        mindist = distanceField[id.xy].z;
+    if (map[idx] == 1)
+    {
     
-    Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+        for (int i = 0; i < 8; i++)
+        {
+            float2 currOffset = offsets[i] * 2 * pow(2, offsetmult);
+            float2 currUV = currOffset + id.xy;
+            if (currUV.x <= resolution && currUV.y <= resolution && currUV.x > 0 && currUV.y > 0)
+            {
+                if (map[currUV.x + (currUV.y * resolution)] < 1)
+                {
+                    float dist = length(currOffset) * _PixelSize;
+                    dist = dot(id.xy - currUV, id.xy - currUV) / resolution;
+                    if (dist < mindist)
+                    {
+                        mindist = dist;
+                        distanceField[id.xy] = float4(currUV.x / resolution, currUV.y / resolution, dist, 0);
+                    }
+                }
+                //else if (distanceField[currUV].z > 0.0f && distanceField[currUV].x != 0 && distanceField[currUV].y != 0)
+                //{
+                //    float dist = length(id.xy - distanceField[currUV].xy * resolution) * _PixelSize;
+                //    float2 tmp = id.xy - distanceField[currUV].xy * resolution;
+                //    dist = dot(tmp, tmp) * _PixelSize;
+                //    if (dist < mindist)
+                //    {
+                //        mindist = dist;
+                //        distanceField[id.xy] = float4(distanceField[currUV].x / resolution, distanceField[currUV].y / resolution, dist, 0);
+                //    }
+                //}
+
+            }
+        }
+    }
 }
