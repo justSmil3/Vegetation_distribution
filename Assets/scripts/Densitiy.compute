@@ -3,10 +3,11 @@
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
-RWStructuredBuffer<float> Result;
+RWTexture2D<float> map;
 StructuredBuffer<float3> normals;
 float th;
 int resolution;
+int offsetmult;
 
 float DAngle(float3 normal)
 {
@@ -18,9 +19,9 @@ float DAngle(float3 normal)
 void Distribution (uint3 id : SV_DispatchThreadID)
 {
     if (DAngle(normals[id.x + id.y * resolution]) < th)
-        Result[id.xy] = float4(0, 0, 1, 0);
+        map[id.xy] = float4(0, 0, 1, 0);
     else
-        Result[id.xy] = float4(0, 0, 0, 0);;
+        map[id.xy] = float4(0, 0, 0, 0);;
 }
 
 [numthreads(8, 8, 1)]
@@ -38,4 +39,6 @@ void JFA(uint3 id : SV_DispatchThreadID)
         float2(-1.0f, 1.0f),
         float2(1.0f, -1.0f)
     };
+    
+    
 }
