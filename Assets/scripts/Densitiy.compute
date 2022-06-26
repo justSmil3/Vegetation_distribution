@@ -1,13 +1,17 @@
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CSMain
+#pragma kernel Distribution
+#pragma kernel JFA
+#pragma kernel Visulize
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
-RWTexture2D<float> map;
+RWTexture2D<float4> map;
 StructuredBuffer<float3> normals;
 float th;
 int resolution;
 int offsetmult;
+float intensifyer;
+
 
 float DAngle(float3 normal)
 {
@@ -21,13 +25,19 @@ void Distribution (uint3 id : SV_DispatchThreadID)
     if (DAngle(normals[id.x + id.y * resolution]) < th)
         map[id.xy] = float4(0, 0, 1, 0);
     else
-        map[id.xy] = float4(0, 0, 0, 0);;
+        map[id.xy] = float4(0, 0, 0, 0);
 }
 
 [numthreads(8, 8, 1)]
 void JFA(uint3 id : SV_DispatchThreadID)
 {
-    float PixelSize = 1 / (float) resolution;
+    if (map[id.xy].z < 0.01f)
+        return;
+    
+    float mindist = 99999.0f;
+    if (map[id.xy].x > 0 || map[id.xy].y > 0)
+        mindist = map[id.xy].z;
+    float PixelSize = 1.0f / (float) resolution;
     float2 offsets[8] =
     {
         float2(-1.0f, -1.0f),
@@ -40,5 +50,42 @@ void JFA(uint3 id : SV_DispatchThreadID)
         float2(1.0f, -1.0f)
     };
     
+    for (int i = 0; i < 8; i++)
+    {
+        float2 currOffset = offsets[i] * pow(2, offsetmult);
+        float2 currUV = currOffset + id.xy;
+        //currUV.x = clamp(currUV.x, 0, resolution - 1);
+        //currUV.y = clamp(currUV.y, 0, resolution - 1);
     
+        if (map[currUV].z == 0.0f)
+        {
+            float dist = clamp(length(currOffset) * PixelSize, 0.01f, 1);
+            if (dist < mindist)
+            {
+                mindist = dist;
+                map[id.xy] = float4(currUV.x * PixelSize, currUV.y * PixelSize, dist, 0);
+            }
+        }
+        else if (map[currUV].x > 0 || map[currUV].y > 0)
+        {
+            currUV = map[currUV].xy;
+            float dist = clamp(length(currUV * resolution - (float2) id.xy) * PixelSize, 0.01f, 1);
+            if (dist < mindist)
+            {
+                mindist = dist;
+                map[id.xy] = float4(currUV.x , currUV.y , dist, 0);
+            }
+        }
+    }
+}
+
+[numthreads(8, 8, 1)]
+void Visulize(uint3 id : SV_DispatchThreadID)
+{
+    //if (map[id.xy].z == 0)
+    //    map[id.xy] = float4(1, 1, 1, 0);
+    //else
+    //map[id.xy] = float4(0, 0, 0, 0);
+    float v = map[id.xy].z * intensifyer;
+    map[id.xy] = float4(v, v, v, 0);
 }

@@ -12,10 +12,13 @@ public class VeggiCPU : MonoBehaviour
     private float[] map;
     [Range(0, 1)]
     public float th;
+    [Range(0, 100)]
+    public float intensifyer;
 
     public ComputeShader distribute;
     public ComputeShader visualize;
     public ComputeShader distance;
+    public ComputeShader density;
 
     private ComputeBuffer normalBuffer;
     private ComputeBuffer mapBuffer;
@@ -36,7 +39,8 @@ public class VeggiCPU : MonoBehaviour
                 normals[x + y * resolution] = normal;
             }
 
-        DetermineHabitability();
+        DetermineDensity();
+        //DetermineHabitability();
     }
 
     public void  SimulateVeggi()
@@ -49,7 +53,8 @@ public class VeggiCPU : MonoBehaviour
 
     private void FixedUpdate()
     {
-        DetermineHabitability();
+        DetermineDensity();
+        //DetermineHabitability();
     }
 
     public void DetermineHabitability()
@@ -91,5 +96,37 @@ public class VeggiCPU : MonoBehaviour
         Graphics.CopyTexture(output, texture);
         normalBuffer.Dispose();
         mapBuffer.Dispose();
+    }
+
+    public void DetermineDensity()
+    {
+        normalBuffer = new ComputeBuffer(resolution * resolution, sizeof(float) * 3);
+        normalBuffer.SetData(normals);
+        output = new RenderTexture(resolution, resolution, 3);
+        output.enableRandomWrite = true;
+
+        int distributionKernel = density.FindKernel("Distribution");
+        int jfaKernel = density.FindKernel("JFA");
+        int visulizeKernrl = density.FindKernel("Visulize");
+
+        density.SetFloat("th", th);
+        density.SetInt("resolution", resolution); 
+        density.SetFloat("intensifyer", intensifyer);
+
+        density.SetBuffer(distributionKernel, "normals", normalBuffer);
+        density.SetTexture(distributionKernel, "map", output);
+        density.Dispatch(distributionKernel, resolution / 8, resolution / 8, 1);
+
+        int numRuns = (int)Mathf.Log(resolution, 2);
+        for(int i = 0; i < numRuns; i++)
+        {
+            density.SetInt("offsetmult", i);
+            density.SetTexture(jfaKernel, "map", output);
+            density.Dispatch(jfaKernel, resolution / 8, resolution / 8, 1);
+        }
+        density.SetTexture(visulizeKernrl, "map", output);
+        density.Dispatch(visulizeKernrl, resolution / 8, resolution / 8, 1);
+        Graphics.CopyTexture(output, texture);
+        normalBuffer.Dispose();
     }
 }
