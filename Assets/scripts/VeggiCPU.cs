@@ -19,6 +19,7 @@ public class VeggiCPU : MonoBehaviour
     public ComputeShader visualize;
     public ComputeShader distance;
     public ComputeShader density;
+    public texture bayer_field;
 
     private ComputeBuffer normalBuffer;
     private ComputeBuffer mapBuffer;
@@ -108,6 +109,7 @@ public class VeggiCPU : MonoBehaviour
         int distributionKernel = density.FindKernel("Distribution");
         int jfaKernel = density.FindKernel("JFA");
         int visulizeKernrl = density.FindKernel("Visulize");
+        int djitterKernel = density.FindKernel("Djitter");
 
         density.SetFloat("th", th);
         density.SetInt("resolution", resolution); 
@@ -126,6 +128,10 @@ public class VeggiCPU : MonoBehaviour
         }
         density.SetTexture(visulizeKernrl, "map", output);
         density.Dispatch(visulizeKernrl, resolution / 8, resolution / 8, 1);
+
+        density.SetTexture(djitterKernel, "map", output);
+        density.SetTexture(djitterKernel, "bayer", bayer_field);
+
         Graphics.CopyTexture(output, texture);
         normalBuffer.Dispose();
     }

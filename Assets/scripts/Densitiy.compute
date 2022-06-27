@@ -2,16 +2,19 @@
 #pragma kernel Distribution
 #pragma kernel JFA
 #pragma kernel Visulize
+#pragma kernel Djitter
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> map;
+Texture2D<float4> bayer;
 StructuredBuffer<float3> normals;
 float th;
 int resolution;
 int offsetmult;
 float intensifyer;
 
+const int BAYER_RADIUS = 12;
 
 float DAngle(float3 normal)
 {
@@ -88,4 +91,18 @@ void Visulize(uint3 id : SV_DispatchThreadID)
     //map[id.xy] = float4(0, 0, 0, 0);
     float v = map[id.xy].z * intensifyer;
     map[id.xy] = float4(v, v, v, 0);
+}
+
+[numthreads(8,8,1)]
+void Djitter(uint3 id : SV_DispatchThreadID)
+{
+    int2 bayer_id = (int2)id.xy / 4;
+    if(map[id.xy].x >= bayer[bayer_id])
+    {
+        map[id.xy] = float4(1,1,1,0);
+    }
+    else 
+    {
+        map[id.xy] = float4(0,0,0,0);
+    }
 }
