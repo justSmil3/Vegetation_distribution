@@ -1,0 +1,67 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#pragma kernel debugshader
+
+StructuredBuffer<float3> bayer;
+RWStructuredBuffer<float2> points;
+RWTexture2D<float4> map;
+RWTexture2D<float4> mult;
+RWTexture2D<float4> dt;
+
+int resolution;
+float rescaleFactorRad;
+int rows;
+int len; // calculate on cpu by calculating 8 / footprint
+
+// each pattern is a threadgroup <- what does he mean with that lul 
+
+[numthreads(32,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    float3 currentpoint = bayer[id.x % len];
+    float currentBatch = int(id.x / len);
+    int yMult = int(currentBatch / rows);
+    int xMult = (currentBatch - (rows * yMult)) % rows;
+
+    currentpoint.x += ((256 + (8 * rescaleFactorRad)) * xMult);
+    currentpoint.y += ((256 + (8 * rescaleFactorRad)) * yMult);
+
+    float newX = currentpoint.x * rescaleFactorRad;
+    float newY = currentpoint.y * rescaleFactorRad;
+
+    if(newX >= resolution || newY >= resolution)
+        return;
+
+    currentpoint = float3(newX, newY, currentpoint.z);
+    float4 p = map[currentpoint.xy] * mult[currentpoint.xy];
+    if (p.w < currentpoint.z && p.z > currentpoint.z)
+    {
+        points[id.x] = currentpoint.xy;
+        dt[currentpoint.xy] = float4(1,1,1,0);
+    } 
+    else
+    {
+        points[id.x] = float2(p.z,currentpoint.z);
+    }
+}
+// bayer_matrix -> points
+// current postition
+// scale of layer footprint
+// greyscaltexture
+// resolution 
+// radius
+// spawnpoint array
+// depug spawn map
+
+// bayer radius === 8 needet for scaling, 
+// this one is a hardcoded value cause its used to 
+// generate the static pattern
+// bayer res === 256 needed for scaling
+// this one is the resolution used to pregenerate the pattern
+
+//// Steps: 
+// take the first point
+// rescale point
+// compare point to greyscale value
+// if true enter spwanpoint in array
+

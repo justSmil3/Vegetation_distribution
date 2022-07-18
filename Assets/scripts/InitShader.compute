@@ -1,0 +1,27 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Mask
+
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+StructuredBuffer<float3> normals;
+float th; 
+int resolution;
+
+float Slope(float3 vec){
+    return acos(vec.y);
+}
+
+// terrain data - spawn mask
+[numthreads(8,8,1)]
+void Mask (uint3 id : SV_DispatchThreadID)
+{
+    // calculate mask based on certain rules 
+    ////////////////////////////////////////
+
+    // calculate slope
+    float slope = Slope(normals[id.x + id.y * resolution]);
+    float v = slope > th ? 0 : 1;
+    Result[id.xy] = float4(v, v, v, 0);
+}

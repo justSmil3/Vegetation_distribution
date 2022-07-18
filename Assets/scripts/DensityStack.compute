@@ -1,0 +1,20 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> DensityMap;
+Texture2D<float4> Mask;
+RWTexture2D<float4> PlantDensity;
+float viability;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{   
+    float mv = DensityMap[id.xy].z * 0.5f * Mask[id.xy].x;
+    float v = (DensityMap[id.xy].z + viability) * 0.5f * Mask[id.xy].x;
+    DensityMap[id.xy] = float4(0, 0, v, mv);
+    PlantDensity[id.xy] = float4(0, 0, v, mv);
+    // this does not work cause there is no specific information about the plant 
+    // that is ment with this specific density map.
+}

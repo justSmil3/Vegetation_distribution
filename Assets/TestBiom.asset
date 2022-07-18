@@ -12,5 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 077e1059a7bb6d646a82b7925188795b, type: 3}
   m_Name: TestBiom
   m_EditorClassIdentifier: 
-  precipitation: 0
-  temperature: 0
+  bioZone: 2
+  averagePrecipitation: 100
+  averageTemperature: 10

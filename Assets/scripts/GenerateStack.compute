@@ -1,0 +1,84 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#pragma kernel Visulize
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> map;
+RWTexture2D<float4> vmap;
+int resolution;
+int offsetmult;
+float intensifyer;
+
+//// definitly think about using a seperate map for the JFA so that it can afterward be 
+//// multiplied with the Density map for the optimal djittering.
+
+//somehow in here i have to somehow encode the min / max values to r & b of 
+// the plant map. 
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    if (map[id.xy].z < 0.01f)
+        return;
+
+    float mindist = 99999.0f;
+    if (map[id.xy].x > 0 || map[id.xy].y > 0)
+        mindist = map[id.xy].z;
+        
+    float PixelSize = 1.0f / (float) resolution;
+    float2 offsets[8] =
+    {
+        float2(-1.0f, -1.0f),
+        float2(1.0f, 1.0f),
+        float2(1.0f, 0.0f),
+        float2(0.0f, 1.0f),
+        float2(-1.0f, 0.0f),
+        float2(0.0f, -1.0f),
+        float2(-1.0f, 1.0f),
+        float2(1.0f, -1.0f)
+    };
+    
+    for (int i = 0; i < 8; i++)
+    {
+        float2 currOffset = offsets[i] * pow(2, offsetmult);
+        float2 currUV = currOffset + id.xy;
+        currUV.x = clamp(currUV.x, 0, resolution - 1);
+        currUV.y = clamp(currUV.y, 0, resolution - 1);
+    
+        if (map[currUV].z == 0.0f)
+        {
+            float dist = clamp(length(currOffset) * PixelSize, 0.01f, 1);
+            //dist *= v;
+            if (dist < mindist)
+            {
+                mindist = dist;
+                map[id.xy] = float4(currUV.x * PixelSize, currUV.y * PixelSize, dist, 0);
+            }
+        }
+        else if (map[currUV].x > 0 || map[currUV].y > 0)
+        {
+            currUV = map[currUV].xy;
+                //debug[id.x + id.y * resolution] = length(currUV * resolution - (float2) id.xy) * PixelSize;
+            float dist = clamp(length(currUV * resolution - (float2) id.xy) * PixelSize, 0.01f, 1);
+            //dist *= v;
+            if (dist < mindist)
+            {
+                mindist = dist;
+                map[id.xy] = float4(currUV.x , currUV.y , dist, 0);
+            }
+        }
+    }
+}
+
+
+[numthreads(8, 8, 1)]
+void Visulize(uint3 id : SV_DispatchThreadID)
+{
+    //if (map[id.xy].z == 0)
+    //    map[id.xy] = float4(1, 1, 1, 0);
+    //else
+    //map[id.xy] = float4(0, 0, 0, 0);
+    float v = map[id.xy].z * intensifyer * vmap[id.xy].z;
+    float w = vmap[id.xy].a;
+    vmap[id.xy] = float4(v, w, v, 0);
+}

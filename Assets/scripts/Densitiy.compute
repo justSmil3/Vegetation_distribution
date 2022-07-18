@@ -3,18 +3,25 @@
 #pragma kernel JFA
 #pragma kernel Visulize
 #pragma kernel Djitter
+#pragma kernel SpawnPoints
+
+// /100 == /128*1.28
+// 
 
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> map;
+RWStructuredBuffer<float4> debug;
+Texture2D<float4> helper;
+RWStructuredBuffer<float> spawn;
 Texture2D<float4> bayer;
 StructuredBuffer<float3> normals;
 float th;
 int resolution;
 int offsetmult;
+float radius;
 float intensifyer;
 
-const int BAYER_RADIUS = 12;
 
 float DAngle(float3 normal)
 {
@@ -93,16 +100,137 @@ void Visulize(uint3 id : SV_DispatchThreadID)
     map[id.xy] = float4(v, v, v, 0);
 }
 
+// [numthreads(8,8,1)]
+// void Djitter(uint3 id : SV_DispatchThreadID)
+// {
+//     // in here i gotta check if the point is in the middle and if the entire circle fits in. 
+//     // this has to happen because of 2 reasons, first of this way 
+//     // I wont have cut of circles / spawn points, and secondly this way
+//     // I actually know my spawn points.
+//     float tR = radius / 8;
+//     int2 bayer_id = id.xy / tR / 4;
+//     bayer_id = bayer_id - int2(bayer_id / 256) * 256;
+//     float bayerv = bayer[bayer_id].x;
+
+//     int v0 = 8 * tR;
+//     float v1 = bayer[int2(bayer_id.x - v0, bayer_id.y)].x;
+//     float v2 = bayer[int2(bayer_id.x + v0, bayer_id.y)].x +
+//                bayer[int2(bayer_id.x, bayer_id.y + v0)].x + 
+//                bayer[int2(bayer_id.x, bayer_id.y - v0)].x;
+               
+//     if(v1 == 0) 
+//     {
+//         map[id.xy] = float4(0,0,0,0);
+//         //return;
+//     }
+//     else if(v1 * 3 == v2)
+//     {
+//         for(int x2 = -radius; x2 < radius; x2++)
+//         {
+//             for(int y2 = -radius; y2 < radius; y2++)
+//             {
+//                 if(pow(x2, 2) + pow(y2, 2) <= pow(radius, 2))
+//                 {
+//                     map[int2(id.x + x2, id.y + y2)]  = float4(bayerv, bayerv, bayerv,1);
+//                 }
+//             }
+//         }
+//         spawn[id.x + id.y * resolution] = bayerv;
+//         //map[id.xy] = float4(bayerv, bayerv, bayerv,1);
+//         // maybe check in here if point is in center ? 
+//     }
+//     // else if(map[id.xy].x > bayer[bayer_id].x){
+//     //     map[id.xy] = float4(bayerv, bayerv, bayerv,1);
+//     // }
+//     else 
+//     {
+//         map[id.xy] = float4(0,0,0,0);
+//     }
+//     //map[id.xy] = float4(bayerv, bayerv, bayerv,1);
+// }
+
 [numthreads(8,8,1)]
 void Djitter(uint3 id : SV_DispatchThreadID)
 {
-    int2 bayer_id = (int2)id.xy / 4;
-    if(map[id.xy].x >= bayer[bayer_id])
+    int BAYER_RADIUS = 8;
+    int BAYER_RESOLUTION = 128;
+
+    int BAYER_SAFE = 1;
+    int BAYER_SAFE_RADIUS = BAYER_RADIUS * BAYER_SAFE;
+
+    //BAYER_RESOLUTION = BAYER_RESOLUTION >> BAYER_SAFE_RADIUS;
+
+    map[id.xy] = float4(0,0,0, 1);
+    float pxl_mult = (BAYER_RADIUS / radius);
+    
+    int2 start_id = int2(id.xy * pxl_mult);
+    int2 tmp_steps = start_id - int2((id.xy - 1) * pxl_mult);
+    int num_steps = (tmp_steps.x + tmp_steps.y) / 2; 
+    // i need a more optimal solution for this one, i think maybe
+    // the / stepping could work i just have to figure out why it is 
+    // behaving differently here. i
+    for(int bX = 0; bX < num_steps; bX++)
     {
-        map[id.xy] = float4(1,1,1,0);
+        for(int bY = 0; bY < num_steps; bY++)
+        {
+            int bayer_x = start_id.x + bX;
+            int bayer_y = start_id.y + bY;
+            bayer_x = bayer_x - int((bayer_x >> int(log2(BAYER_RESOLUTION))) * BAYER_RESOLUTION);
+            bayer_y = bayer_y - int((bayer_y >> int(log2(BAYER_RESOLUTION))) * BAYER_RESOLUTION);
+            // take a thought at thisL: 
+            // bayer_x = bayer_x - int((bayer_x * 0.8) * BAYER_RESOLUTION);
+            // bayer_y = bayer_y - int((bayer_y * 0.8) * BAYER_RESOLUTION);
+
+            bayer_x += 56 ;//(BAYER_RESOLUTION >> 1);
+            bayer_y += 56 ;//(BAYER_RESOLUTION >> 1);
+            
+            int bayer_xp = bayer_x + BAYER_RADIUS;
+            int bayer_xm = bayer_x - BAYER_RADIUS;
+            int bayer_yp = bayer_y + BAYER_RADIUS;
+            int bayer_ym = bayer_y - BAYER_RADIUS;
+
+            float v1 = bayer[int2(bayer_xp, bayer_y)].x;
+            float v2 = bayer[int2(bayer_xm, bayer_y)].x;
+            float v3 = bayer[int2(bayer_x, bayer_yp)].x;
+            float v4 = bayer[int2(bayer_x, bayer_ym)].x;
+
+            if(v1 == 0 || v2 == 0 || v3 == 0 || v4 == 0) continue;
+
+            debug[id.x + id.y * resolution] = float4(v1, v2, v3, v4);
+            if(v1 == v2 && v2 == v3 && v3 == v4){
+                
+                if (helper[id.xy].x < v1) 
+                {
+                    continue;
+                }
+                //v1 = bayer[int2(bayer_x, bayer_y)].x;
+                for(int x = -radius; x <= radius; x++)
+                {
+                    for(int y = -radius; y <= radius; y++)
+                    {
+                        if (pow(x, 2) + pow(y, 2) <= pow(radius, 2))
+                        {
+                            int x2 = clamp(id.x + x, 0, resolution);
+                            int y2 = clamp(id.y + y, 0, resolution);
+                            map[int2(x2, y2)] = float4(v1, v2, v3, 1);
+                        }
+                    }
+                }
+                spawn[id.x + id.y * resolution] = v1;
+                break;
+            }
+        }
     }
-    else 
-    {
-        map[id.xy] = float4(0,0,0,0);
+}
+
+[numthreads(8,8,1)]
+void SpawnPoints(uint3 id : SV_DispatchThreadID)
+{
+    float v = spawn[id.x + id.y * resolution];
+    if(v > 0)
+        map[id.xy] = float4(v,v,v,1);
+    else {
+        v = map[id.xy].x * 0.3f;
+        map[id.xy] = float4(v,v,v,1);
     }
 }
