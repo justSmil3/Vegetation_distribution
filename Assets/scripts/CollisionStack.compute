@@ -1,0 +1,28 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Map;
+RWTexture2D<float4> Collision;
+float radius;
+int resolution;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    // TODO: insert actual code here!
+    if(Collision[id.xy].x > 0);
+    for(int x = -radius; x <= radius; x++)
+    {
+        for(int y = -radius; y <= radius; y++)
+        {
+            if (pow(x, 2) + pow(y, 2) <= pow(radius, 2))
+            {
+                int newX = clamp(x + id.x, 0, resolution - 1);
+                int newY = clamp(y + id.y, 0, resolution - 1);
+                Map[int2(newX, newY)] = min(0, Map[int2(newX, newY)] - 1);
+            }
+        }
+    }
+}

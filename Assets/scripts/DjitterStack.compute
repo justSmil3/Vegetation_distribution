@@ -1,13 +1,12 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
-#pragma kernel debugshader
-
 StructuredBuffer<float3> bayer;
 RWStructuredBuffer<float2> points;
 RWTexture2D<float4> map;
 RWTexture2D<float4> mult;
 RWTexture2D<float4> dt;
 
+float intensifyer;
 int resolution;
 float rescaleFactorRad;
 int rows;
@@ -33,15 +32,16 @@ void CSMain (uint3 id : SV_DispatchThreadID)
         return;
 
     currentpoint = float3(newX, newY, currentpoint.z);
-    float4 p = map[currentpoint.xy] * mult[currentpoint.xy];
+    float4 p = min(1.0f, map[currentpoint.xy] * intensifyer) * mult[currentpoint.xy];
     if (p.w < currentpoint.z && p.z > currentpoint.z)
+    // if (p.z >= currentpoint.z)
     {
         points[id.x] = currentpoint.xy;
         dt[currentpoint.xy] = float4(1,1,1,0);
     } 
     else
     {
-        points[id.x] = float2(p.z,currentpoint.z);
+        // points[id.x] = float2(p.z,currentpoint.z);
     }
 }
 // bayer_matrix -> points

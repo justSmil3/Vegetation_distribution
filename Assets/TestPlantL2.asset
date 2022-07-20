@@ -10,13 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c544e22d75fc6da4ba1976500feeba41, type: 3}
-  m_Name: TestPlant2
+  m_Name: TestPlantL2
   m_EditorClassIdentifier: 
-  vegetationPrefab: {fileID: 919132149155446097, guid: 9cd2c186c3beb3243b577698e9d8d8f0, type: 3}
+  vegetationPrefab: {fileID: 0}
   biom: 0
-  precipitation: 187
+  precipitation: 191
   temerature: -10
-  radius: 5
-  viability: 0.44989532
+  radius: 8
+  viability: 0.4411456
   priorityRadius: 0
   priority: 0

@@ -13,5 +13,5 @@ MonoBehaviour:
   m_Name: TestBiom
   m_EditorClassIdentifier: 
   bioZone: 2
-  averagePrecipitation: 100
-  averageTemperature: 10
+  averagePrecipitation: 0
+  averageTemperature: -10

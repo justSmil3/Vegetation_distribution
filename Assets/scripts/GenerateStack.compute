@@ -5,7 +5,6 @@
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> map;
-RWTexture2D<float4> vmap;
 int resolution;
 int offsetmult;
 float intensifyer;
@@ -78,7 +77,6 @@ void Visulize(uint3 id : SV_DispatchThreadID)
     //    map[id.xy] = float4(1, 1, 1, 0);
     //else
     //map[id.xy] = float4(0, 0, 0, 0);
-    float v = map[id.xy].z * intensifyer * vmap[id.xy].z;
-    float w = vmap[id.xy].a;
-    vmap[id.xy] = float4(v, w, v, 0);
+    float v = map[id.xy].z;
+    map[id.xy] = float4(v, v, v, v);
 }
