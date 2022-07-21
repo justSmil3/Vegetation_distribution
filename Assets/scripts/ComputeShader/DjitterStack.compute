@@ -1,7 +1,7 @@
 // Each #kernel tells which function to compile; you can have many kernels
 #pragma kernel CSMain
 StructuredBuffer<float3> bayer;
-RWStructuredBuffer<float2> points;
+RWTexture2D<float4> points;
 RWTexture2D<float4> map;
 RWTexture2D<float4> mult;
 RWTexture2D<float4> dt;
@@ -36,7 +36,7 @@ void CSMain (uint3 id : SV_DispatchThreadID)
     if (p.w < currentpoint.z && p.z > currentpoint.z)
     // if (p.z >= currentpoint.z)
     {
-        points[id.x] = currentpoint.xy;
+        points[currentpoint.xy] = float4(1,1,1,0);
         dt[currentpoint.xy] = float4(1,1,1,0);
     } 
     else

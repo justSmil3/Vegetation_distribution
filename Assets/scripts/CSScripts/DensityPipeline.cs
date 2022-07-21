@@ -7,10 +7,12 @@ public struct layer
 {
     public List<Plant> p;
     public List<int> pools;
+    public List<RenderTexture> sp;
 }
 
 public class DensityPipeline : MonoBehaviour
 {
+    // TODO clean up the variable mess  
     private const int BAYER_RESOLUTION = 256;
     private const int BAYER_RADIUS = 8;
     private const int MAX_TEMPERATURE = 50;
@@ -22,15 +24,15 @@ public class DensityPipeline : MonoBehaviour
     public Biom biom;
     public float intensifyer = 1.0f;
     public int[,] layerCollision;
+    private Vector3[] normals;
 
     [Range(0, 1)]
     public float viabilityThreshhold = 0;
+    [Range(0, 1)]
+    public float th = 0.7f;
     
     private ComputeBuffer debugBuffer;
     private ComputeBuffer normalBuffer;
-    private ComputeBuffer spawnPointBuffer;
-
-    Vector2[] spawnPoints;
 
     [UnityEngine.SerializeField]
     private ComputeShader DensityPipe;
@@ -42,10 +44,13 @@ public class DensityPipeline : MonoBehaviour
     private ComputeShader CollisionPipe;
     [UnityEngine.SerializeField]
     private ComputeShader DjitterPipe;
+    [UnityEngine.SerializeField]
+    private ComputeShader SpawnPointPipe;
 
     public TerrainData terrainData;
 
     private List<RenderTexture> stackedDensity;
+    private List<RenderTexture> stackedSpawns;
     private RenderTexture mask;
 
     private float[,] heights;
@@ -57,6 +62,7 @@ public class DensityPipeline : MonoBehaviour
     {
         // var test = Bayer_Matrix.Instance.BayerMatrix;
         stackedDensity = new List<RenderTexture>();
+        stackedSpawns = new List<RenderTexture>();
         //densityStack = new List<RenderTexture>();
         heights = terrainData.GetHeights(0,0, resolution, resolution);
         for(int j = 0; j < layers.Count; j++)
@@ -65,10 +71,16 @@ public class DensityPipeline : MonoBehaviour
             RenderTexture stackedMap = new RenderTexture(resolution, resolution, 3);
             stackedMap.enableRandomWrite = true;
             stackedDensity.Add(stackedMap);
+            RenderTexture stackedSpawnMap = new RenderTexture(resolution, resolution, 3);
+            stackedSpawnMap.enableRandomWrite = true;
+            stackedSpawns.Add(stackedSpawnMap);
             for(int i = 0; i < plants.Count; i++){
                 RenderTexture _tex = new RenderTexture(resolution, resolution, 3);
                 _tex.enableRandomWrite = true;
                 //densityStack.Add(_tex);
+                RenderTexture _sp = new RenderTexture(resolution, resolution, 3);
+                _sp.enableRandomWrite = true;
+                layers[j].sp.Add(_sp);
                 plants[i].map = _tex;
                 // if(plants[i].vegetationPrefab)
                 // {
@@ -78,7 +90,14 @@ public class DensityPipeline : MonoBehaviour
             }
         }
 
-        DispatchInitShader(); 
+
+        normals = new Vector3[resolution * resolution];
+        for (int x = 0; x < resolution; x++)
+            for(int y = 0; y < resolution; y++)
+            {
+                Vector3 normal = terrainData.GetInterpolatedNormal((float)x / resolution, (float)y / resolution);
+                normals[x + y * resolution] = normal;
+            }
         ExecutePipeline();
     }
 
@@ -90,26 +109,20 @@ public class DensityPipeline : MonoBehaviour
     private void ExecutePipeline()
     {
         // TODO remove all the debug visuals including the white spawning points
+        DispatchInitShader(); 
         DispatchDensityPipeline();
         DispatchGeneratePipeLine();
         DispatchDjitterPipeLine();
         DispatchCollisionPipeLine(); // TODO i also have to remove the spawnpoints but that will be hadled once the spawnsystem is done i guess
+        DispatchSpawnPointPipeLine();
     }
 
     private void DispatchInitShader()
     {
-        Vector3[] normals = new Vector3[resolution * resolution];
-        for (int x = 0; x < resolution; x++)
-            for(int y = 0; y < resolution; y++)
-            {
-                Vector3 normal = terrainData.GetInterpolatedNormal((float)x / resolution, (float)y / resolution);
-                normals[x + y * resolution] = normal;
-            }
-        
         normalBuffer = new ComputeBuffer(resolution * resolution, 12);
         normalBuffer.SetData(normals);
         InitShader.SetBuffer(0, "normals", normalBuffer);
-        InitShader.SetFloat("th", 0.7f);
+        InitShader.SetFloat("th", th);
         InitShader.SetInt("resolution", resolution);
         mask = new RenderTexture(resolution, resolution, 3);
         mask.enableRandomWrite = true;
@@ -132,6 +145,8 @@ public class DensityPipeline : MonoBehaviour
             DensityPipe.SetFloat("numPlantDivider", 1.0f);
             // Find a better way to do this, but it'll do for now
             DensityPipe.SetTexture(1, "DensityMap", stackedDensity[i]);
+            DensityPipe.Dispatch(1, resolution/8, resolution/8, 1);
+            DensityPipe.SetTexture(1, "DensityMap", stackedSpawns[i]); // TODO fix this
             DensityPipe.Dispatch(1, resolution/8, resolution/8, 1);
             float totalViability = 0.0f;
             float maxViability = 0.0f;
@@ -202,25 +217,27 @@ public class DensityPipeline : MonoBehaviour
     {
         // TODO predifine collision matrix. handling it intern does not really make sense
         // but this one is the temporary setup of the layer collision matrix
+        //! this is a complete mess amd does currently not work
         layerCollision = new int[layers.Count,layers.Count];
         int tmpV = layers.Count - 1;
         for(int i = 0; i < tmpV; i++)
         {
-            List<RenderTexture> layersToCollide = new List<RenderTexture>();
+            List<layer> layersToCollide = new List<layer>();
             for(int j = i; j < tmpV; j++)
             {
-                //if(layerCollision[i, tmpV - 1 - j] == 1)
-                    layersToCollide.Add(stackedDensity[j+1]);
+                //if(layerCollision[i, tmpV - 1 - j] == 1) //TODO this has to be handled by an ui to be user controllable
+                    layersToCollide.Add(layers[j+1]);
             }
             for(int j = 0; j < layersToCollide.Count; j++)
             {
-                CollisionPipe.SetTexture(0, "Map", stackedDensity[i]);
-                CollisionPipe.SetTexture(0, "Collision", layersToCollide[j]);
+                CollisionPipe.SetTexture(0, "Map", stackedSpawns[i]);
+                CollisionPipe.SetTexture(0, "Collision", stackedSpawns[i + j  + 1]);
                 CollisionPipe.SetInt("resolution", resolution);
-                CollisionPipe.SetFloat("radius", layers[i].p[0].radius);
+                CollisionPipe.SetFloat("radius", layersToCollide[j].p[0].radius);
                 CollisionPipe.Dispatch(0, resolution / 8, resolution / 8, 1);
             }
         }
+        Graphics.CopyTexture(stackedSpawns[0], testrender);
     }
     private bool debugSpawn = true;
     private void DispatchDjitterPipeLine()
@@ -240,6 +257,7 @@ public class DensityPipeline : MonoBehaviour
         for(int i = 0; i < layers.Count; i++)
         {
             DjitterPipe.SetTexture(kernel, "map", stackedDensity[i]);
+            DjitterPipe.SetTexture(kernel, "dt", stackedSpawns[i]);
             List<Plant> _plants = layers[i].p;
             for(int j = 0; j < _plants.Count; j++)
             {
@@ -258,12 +276,10 @@ public class DensityPipeline : MonoBehaviour
                 int scaler = (int)(len * numBatches * Mathf.Pow(radiusNumberModyfier, 2)) * 2;
                 // add one line of points for overflow
                 scaler += len * rows;
-                spawnPointBuffer = new ComputeBuffer(scaler, 8);
-                spawnPoints = new Vector2[scaler];
-                DjitterPipe.SetBuffer(kernel, "points", spawnPointBuffer);
+                DjitterPipe.SetTexture(kernel, "points", layers[i].sp[j]);
                 // RWTexture2D<float4> map;
 
-                DjitterPipe.SetTexture(kernel, "dt", dt);
+                // DjitterPipe.SetTexture(kernel, "dt", dt);
                 DjitterPipe.SetTexture(kernel, "mult", layers[i].p[j].map);
                 DjitterPipe.SetFloat("intensifyer", intensifyer);
                 // int resolution;
@@ -274,28 +290,42 @@ public class DensityPipeline : MonoBehaviour
                 // DjitterPipe.SetFloat("rescaleFactorRes", rescaleFactorRes);
 
                 DjitterPipe.Dispatch(kernel, scaler / 32, 1, 1);
-                spawnPointBuffer.GetData(spawnPoints);
-                if(debugSpawn)
-                // foreach (var point in spawnPoints)
-                // {
-                //     if(layers[i].pools.Count <= j) continue;
-                //     if(point != Vector2.zero) 
-                //     {   
-                //         Vector3 position = new Vector3(point.x, heights[(int)point.y, (int)point.x] * 146.7887f, point.y);
-                //         GameObject test = spawner.SpawnObject(layers[i].pools[j], position, Quaternion.identity);
-                //     }
-                // }
-                spawnPointBuffer.Dispose();
-                spawnPointBuffer = null;
             }
             debugSpawn = false;
         }
 
-        Graphics.CopyTexture(dt, testrender);
+        // Graphics.CopyTexture(dt, testrender);
 
         //spawnPointBuffer.GetData(spawnPoints);
         bayerBuffer.Dispose();
         bayerBuffer = null;
+    }
+
+    private void DispatchSpawnPointPipeLine()
+    {
+        for(int i = 0; i < layers.Count; i++)
+        {   
+            List<Plant> _p = layers[i].p;
+            SpawnPointPipe.SetTexture(0, "LayerMap", stackedSpawns[i]);
+            for(int j = 0; j < _p.Count; j++)
+            {
+                SpawnPointPipe.SetTexture(0, "Map", layers[i].sp[j]);
+                SpawnPointPipe.Dispatch(0, resolution / 8, resolution / 8, 1);
+            }
+        }
+        RenderTexture DebugTexture = new RenderTexture(resolution, resolution, 8);
+        DebugTexture.enableRandomWrite = true;
+        SpawnPointPipe.SetTexture(1, "Map", DebugTexture);
+        for(int i = 0; i < layers.Count; i++)
+        {   
+            List<Plant> _p = layers[i].p;
+            for(int j = 0; j < _p.Count; j++)
+            {
+                SpawnPointPipe.SetTexture(1, "LayerMap", layers[i].sp[j]);
+                SpawnPointPipe.Dispatch(1, resolution / 8, resolution / 8, 1);
+            }
+        }
+        Graphics.CopyTexture(DebugTexture, testrender);
     }
 
     private void OnDisable() {

@@ -1,0 +1,20 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#pragma kernel debug
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Map;
+Texture2D<float4> LayerMap;
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    Map[id.xy] = min(Map[id.xy], LayerMap[id.xy]);
+}
+
+[numthreads(8,8,1)]
+void debug (uint3 id : SV_DispatchThreadID)
+{
+    Map[id.xy] = max(Map[id.xy], LayerMap[id.xy]);
+}

@@ -688,8 +688,12 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 7200000, guid: 62b7d78f4e2e540bc9755f7e6f8521b6, type: 3}
     - target: {fileID: 1107010918650109653, guid: 73f063fe513804d489586d0e3b5c7c70, type: 3}
+      propertyPath: SpawnPointPipe
+      value: 
+      objectReference: {fileID: 7200000, guid: 38e5200821bd04a76be18560e131e2f9, type: 3}
+    - target: {fileID: 1107010918650109653, guid: 73f063fe513804d489586d0e3b5c7c70, type: 3}
       propertyPath: layers.Array.size
-      value: 1
+      value: 2
       objectReference: {fileID: 0}
     - target: {fileID: 1107010918650109653, guid: 73f063fe513804d489586d0e3b5c7c70, type: 3}
       propertyPath: viabilityThreshhold
