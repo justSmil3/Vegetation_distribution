@@ -14,13 +14,13 @@ int len; // calculate on cpu by calculating 8 / footprint
 
 // each pattern is a threadgroup <- what does he mean with that lul 
 
-[numthreads(32,1,1)]
+[numthreads(64,1,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
     float3 currentpoint = bayer[id.x % len];
     float currentBatch = int(id.x / len);
     int yMult = int(currentBatch / rows);
-    int xMult = (currentBatch - (rows * yMult)) % rows;
+    int xMult = (currentBatch - (rows * yMult));// % rows;
 
     currentpoint.x += ((256 + (8 * rescaleFactorRad)) * xMult);
     currentpoint.y += ((256 + (8 * rescaleFactorRad)) * yMult);

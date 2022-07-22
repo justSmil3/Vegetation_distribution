@@ -14,9 +14,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   vegetationPrefab: {fileID: 0}
   biom: 0
-  precipitation: 400
-  temerature: 30
-  radius: 8
-  viability: 0
+  precipitation: 0
+  temerature: -1.3
+  radius: 4
+  viability: 0.4024461
   priorityRadius: 0
   priority: 0

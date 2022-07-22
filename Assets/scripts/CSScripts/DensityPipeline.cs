@@ -52,6 +52,8 @@ public class DensityPipeline : MonoBehaviour
     private List<RenderTexture> stackedDensity;
     private List<RenderTexture> stackedSpawns;
     private RenderTexture mask;
+    private RenderTexture dt;
+    private RenderTexture DebugTexture;
 
     private float[,] heights;
     [UnityEngine.SerializeField]
@@ -63,10 +65,26 @@ public class DensityPipeline : MonoBehaviour
         // var test = Bayer_Matrix.Instance.BayerMatrix;
         stackedDensity = new List<RenderTexture>();
         stackedSpawns = new List<RenderTexture>();
+        dt = new RenderTexture(resolution, resolution, 3);
+        dt.enableRandomWrite = true;
+        DebugTexture = new RenderTexture(resolution, resolution, 3);
+        DebugTexture.enableRandomWrite = true;
         //densityStack = new List<RenderTexture>();
         heights = terrainData.GetHeights(0,0, resolution, resolution);
+
+        normals = new Vector3[resolution * resolution];
+        for (int x = 0; x < resolution; x++)
+        {
+            for(int y = 0; y < resolution; y++)
+            {
+                Vector3 normal = terrainData.GetInterpolatedNormal((float)x / resolution, (float)y / resolution);
+                normals[x + y * resolution] = normal;
+            }
+        }
         for(int j = 0; j < layers.Count; j++)
         {
+            mask = new RenderTexture(resolution, resolution, 3);
+            mask.enableRandomWrite = true;
             List<Plant> plants = layers[j].p;
             RenderTexture stackedMap = new RenderTexture(resolution, resolution, 3);
             stackedMap.enableRandomWrite = true;
@@ -90,15 +108,6 @@ public class DensityPipeline : MonoBehaviour
             }
         }
 
-
-        normals = new Vector3[resolution * resolution];
-        for (int x = 0; x < resolution; x++)
-            for(int y = 0; y < resolution; y++)
-            {
-                Vector3 normal = terrainData.GetInterpolatedNormal((float)x / resolution, (float)y / resolution);
-                normals[x + y * resolution] = normal;
-            }
-        ExecutePipeline();
     }
 
     private void FixedUpdate() 
@@ -124,17 +133,21 @@ public class DensityPipeline : MonoBehaviour
         InitShader.SetBuffer(0, "normals", normalBuffer);
         InitShader.SetFloat("th", th);
         InitShader.SetInt("resolution", resolution);
-        mask = new RenderTexture(resolution, resolution, 3);
-        mask.enableRandomWrite = true;
         InitShader.SetTexture(0, "Result", mask);
         InitShader.Dispatch(0, resolution/8, resolution / 8, 1);
         normalBuffer.Dispose();
+        normalBuffer.Release();
         normalBuffer = null;
     }
 
     private void DispatchDensityPipeline()
     {
         int kernel = 0;//DensityPipe.FindKernel("CSMain");
+
+        DensityPipe.SetTexture(1, "DensityMap", dt); // TODO manage another way to clean these up
+        DensityPipe.Dispatch(1, resolution/8, resolution/8, 1);
+        DensityPipe.SetTexture(1, "DensityMap", DebugTexture); 
+        DensityPipe.Dispatch(1, resolution/8, resolution/8, 1);
 
         for(int i = 0; i < layers.Count; i++)
         {
@@ -162,7 +175,7 @@ public class DensityPipeline : MonoBehaviour
                 temperature = 1 - (Mathf.Abs(biomTemperature - temperature) / MAX_TEMPERATURE);
                 precipitation = 1 - (Mathf.Abs(biomPrecipitation - precipitation) / MAX_PRECIPITATION);
 
-                float viability = Mathf.Pow(0.5f * precipitation + 0.5f * temperature, 3);
+                float viability = Mathf.Pow(0.5f * precipitation + 0.5f * temperature, 10);
                 if(viability > viabilityThreshhold)
                 {
                     totalViability += viability;
@@ -220,7 +233,7 @@ public class DensityPipeline : MonoBehaviour
         //! this is a complete mess amd does currently not work
         layerCollision = new int[layers.Count,layers.Count];
         int tmpV = layers.Count - 1;
-        for(int i = 0; i < tmpV; i++)
+        for(int i = tmpV - 1; i >= 0; i--)
         {
             List<layer> layersToCollide = new List<layer>();
             for(int j = i; j < tmpV; j++)
@@ -251,9 +264,6 @@ public class DensityPipeline : MonoBehaviour
         DjitterPipe.SetBuffer(kernel, "bayer", bayerBuffer);
         
         // RWStructuredBuffer<float2> points;
-        RenderTexture dt = new RenderTexture(resolution, resolution, 3);
-        dt.enableRandomWrite = true;
-
         for(int i = 0; i < layers.Count; i++)
         {
             DjitterPipe.SetTexture(kernel, "map", stackedDensity[i]);
@@ -289,7 +299,7 @@ public class DensityPipeline : MonoBehaviour
                 // float rescaleFactorRes; // calc on cpu by calculating res / bayerres
                 // DjitterPipe.SetFloat("rescaleFactorRes", rescaleFactorRes);
 
-                DjitterPipe.Dispatch(kernel, scaler / 32, 1, 1);
+                DjitterPipe.Dispatch(kernel, scaler / 64, 1, 1);
             }
             debugSpawn = false;
         }
@@ -313,8 +323,6 @@ public class DensityPipeline : MonoBehaviour
                 SpawnPointPipe.Dispatch(0, resolution / 8, resolution / 8, 1);
             }
         }
-        RenderTexture DebugTexture = new RenderTexture(resolution, resolution, 8);
-        DebugTexture.enableRandomWrite = true;
         SpawnPointPipe.SetTexture(1, "Map", DebugTexture);
         for(int i = 0; i < layers.Count; i++)
         {   
@@ -328,6 +336,7 @@ public class DensityPipeline : MonoBehaviour
         Graphics.CopyTexture(DebugTexture, testrender);
     }
 
-    private void OnDisable() {
+    private void OnDisable() 
+    {    
     }
 }
